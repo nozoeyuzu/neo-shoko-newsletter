@@ -18,10 +18,10 @@
 8. [WordPress](#8-wordpress)
 9. [Google Cloud（GCP）構成](#9-google-cloudgcp構成)
 10. [環境変数](#10-環境変数)
-11. [ファイル構成](#11-ファイル構成)
-12. [デプロイ手順](#12-デプロイ手順)
-13. [ローカル動作確認](#13-ローカル動作確認)
-14. [運用担当](#14-運用担当)
+11. [アカウント・認証情報の所有者](#11-アカウント認証情報の所有者)
+12. [ファイル構成](#12-ファイル構成)
+13. [デプロイ手順](#13-デプロイ手順)
+14. [ローカル動作確認](#14-ローカル動作確認)
 15. [トラブルシュート](#15-トラブルシュート)
 
 ---
@@ -105,7 +105,7 @@
 |---|---|---|
 | 月〜金 随時 | GAS（自動） | `chaen-ai-lab&aismileyのリライト` シートに記事が追加される |
 | **毎週金曜 12:00 JST** | Cloud Scheduler → サーバー（自動） | 直近1週間の記事から Gemini が最大 5 件選定し、WP に下書き作成。LINE グループ「記事公開＿NEO商工運営」に通知が飛ぶ |
-| 金〜火 | 編集担当者（社長が割り振り） | 通知された下書きを WP 管理画面でレビュー・修正 |
+| 金〜火 | 編集担当者 | 通知された下書きを WP 管理画面でレビュー・修正 |
 | 担当者の判断時点 | 編集担当者 | 公開してよい記事の編集 URL を「記事公開＿NEO商工運営」グループに `$` 付きで投稿 → 即時に WP 上で公開され、配信キューに積まれる |
 | **第1・第3水曜 12:00 JST** | Cloud Scheduler → サーバー（自動） | 配信キューに積まれた記事を「NEO商工公式アカウント」から友だち全員へ LINE broadcast。送信済みフラグが立つ |
 | 第2・第4水曜 12:00 JST | Cloud Scheduler → サーバー（自動） | 起動はするが「第1・第3水曜ではない」のでスキップ。記事は次の配信タイミングまで溜まる |
@@ -224,7 +224,7 @@ E 列が空 = 「まだ LINE で配信していない」を意味し、`/digest`
 | C | 記事タイトル |
 | D | 記事 URL |
 
-`/digest` で broadcast したタイミングで append されます。テスト送信や検証で誤って入った行があれば、社長または担当者が手動で削除してください。
+`/digest` で broadcast したタイミングで append されます。テスト送信や検証で誤って入った行があれば、担当者が手動で削除してください。
 
 ---
 
@@ -317,7 +317,7 @@ https://line-webhook-156606796405.asia-northeast1.run.app/webhook
 | Google Sheets API | 上記 2 つのスプレッドシートへの編集者権限（シート側で共有） |
 | Cloud Run | このサービスアカウントを Cloud Run のランタイム ID として設定 |
 
-サーバー側では `google.auth.default()` を使っており、Cloud Run のランタイム ID から自動で資格情報を取得します。サービスアカウント JSON ファイルを Cloud Run にデプロイする必要はありません（ローカル実行時のみ JSON ファイルを使う、[13. ローカル動作確認](#13-ローカル動作確認) 参照）。
+サーバー側では `google.auth.default()` を使っており、Cloud Run のランタイム ID から自動で資格情報を取得します。サービスアカウント JSON ファイルを Cloud Run にデプロイする必要はありません（ローカル実行時のみ JSON ファイルを使う、[14. ローカル動作確認](#14-ローカル動作確認) 参照）。
 
 ---
 
@@ -346,7 +346,42 @@ https://line-webhook-156606796405.asia-northeast1.run.app/webhook
 
 ---
 
-## 11. ファイル構成
+## 11. アカウント・認証情報の所有者
+
+このシステムが依存している外部サービスのアカウント所有者一覧。鍵やトークンの再発行、権限委譲時の参照用。
+
+### 11.1 Google アカウント
+
+| 項目 | アカウント | コンソール / リンク | 備考 |
+|---|---|---|---|
+| GCP プロジェクト `sheets-to-wp-draft` の Owner / 課金管理 | `backoffice@lconsulting.jp` | [GCP Console（プロジェクト sheets-to-wp-draft）](https://console.cloud.google.com/welcome?project=sheets-to-wp-draft) | 全リソースの管理権限 |
+| `gcloud auth login` でデプロイに使うアカウント | `backoffice@lconsulting.jp` | — | デプロイ時のローカル CLI ログイン |
+| サービスアカウント `sheets-to-wp-bot@sheets-to-wp-draft.iam.gserviceaccount.com` の発行元 | `backoffice@lconsulting.jp` | [Cloud Run: line-webhook サービス画面](https://console.cloud.google.com/run/detail/asia-northeast1/line-webhook/revisions?project=sheets-to-wp-draft) | このサービスアカウントが Cloud Run のランタイム ID として使われている |
+| Gemini API キー (`GEMINI_API_KEY`) を Google AI Studio で発行したアカウント | `consultant1@lconsulting.jp` | [Google AI Studio Usage](https://aistudio.google.com/usage?project=gen-lang-client-0698776399) | 内部プロジェクト ID: `gen-lang-client-0698776399`。キー失効時は consultant1 でログインして再発行 → Cloud Run の `GEMINI_API_KEY` を更新 |
+| ソースシート `chaen-ai-lab&aismileyのリライト` の Drive オーナー | `backoffice@lconsulting.jp` | [スプレッドシートを開く](https://docs.google.com/spreadsheets/d/1rFhJ7bWNy6a76ecy3LMNmulHE5Iq5OM1L0yQcDNa8K0/edit#gid=572044241) | リンク先のタブ `gid=572044241` が `aismiley_rewrite` |
+| 配信管理シート（ID `1GiJN2W...`、タブ「ニュースレター記事テスト」「ニュースレター記事」）の Drive オーナー | `backoffice@lconsulting.jp` | [スプレッドシートを開く](https://docs.google.com/spreadsheets/d/1GiJN2WryPHUwrcxYOlZbmXE6-KV2EsYYIlbX9THRWW0/edit#gid=645550177) | シートを作成したアカウント |
+| GAS（記事リライト処理）の所有者・実行アカウント | `backoffice@lconsulting.jp` | [ソースシートを開き 拡張機能 → Apps Script](https://docs.google.com/spreadsheets/d/1rFhJ7bWNy6a76ecy3LMNmulHE5Iq5OM1L0yQcDNa8K0/edit#gid=572044241) | ソースシートに紐づく Container-bound Apps Script |
+
+> **ポイント**: Gemini API キーだけ別アカウント（`consultant1@lconsulting.jp`）で発行されている。それ以外の Google 関連はすべて `backoffice@lconsulting.jp` 配下。
+
+### 11.2 LINE Developers / 公式アカウントマネージャー
+
+| 項目 | 現アカウント | 移行予定 | コンソール / リンク |
+|---|---|---|---|
+| 編集用 LINE チャネル（`LINE_DRAFT_TOKEN` を発行している側）の管理 | `backoffice@lconsulting.jp` | `soma@lconsulting.jp` | [LINE Developers Console](https://developers.line.biz/console/) |
+| 公式アカウントチャネル（`LINE_PUBLISH_TOKEN`、NEO商工公式アカウント）の管理 | `backoffice@lconsulting.jp` | `soma@lconsulting.jp` | [LINE Developers Console](https://developers.line.biz/console/) |
+| LINE 公式アカウントマネージャー（NEO商工公式アカウント） | `backoffice@lconsulting.jp` | `soma@lconsulting.jp` | [LINE Official Account Manager](https://manager.line.biz/) |
+| LINE グループ「記事公開＿NEO商工運営」の管理 | `backoffice@lconsulting.jp` | `soma@lconsulting.jp` | LINE アプリから参加 |
+
+> **移行時の注意**: アカウント移管後は、上記 4 項目の所有権／管理権を `soma@lconsulting.jp` に譲渡し、必要に応じて Webhook URL の再登録・チャネルアクセストークンの再発行（→ Cloud Run の環境変数 `LINE_DRAFT_TOKEN` / `LINE_PUBLISH_TOKEN` 更新）を行う。
+
+### 11.3 WordPress
+
+`blog.neo-shoko.jp` はセルフホストの WordPress。投稿には **共通の WordPress アカウント** を使っており、Google アカウントとは無関係。`WP_USERNAME` と `WP_APPLICATION_PASSWORD` は WordPress の管理画面（ユーザー → プロフィール → アプリケーションパスワード）で発行する。
+
+---
+
+## 12. ファイル構成
 
 ```
 neo-shoko-newsletter/
@@ -377,16 +412,16 @@ neo-shoko-newsletter/
 
 ---
 
-## 12. デプロイ手順
+## 13. デプロイ手順
 
 ターミナルから手動で `gcloud run deploy` を叩いています。
 
-### 12.1 前提
+### 13.1 前提
 
 - gcloud CLI がインストールされ、`gcloud auth login` 済み
 - `gcloud config set project sheets-to-wp-draft` 済み
 
-### 12.2 コマンド
+### 13.2 コマンド
 
 ```bash
 cd webhook-server
@@ -400,12 +435,12 @@ gcloud run deploy line-webhook \
 
 `--source .` を使うと Cloud Build が自動でコンテナイメージを作って Cloud Run にデプロイします（Procfile が読まれる）。
 
-### 12.3 デプロイ時の注意
+### 13.3 デプロイ時の注意
 
 - **環境変数はコマンドで上書きしない**こと。Cloud Run コンソール側に既に設定済みの値があります。`--set-env-vars` を付けると差分上書きで一部消える事故が起きやすいので、コードだけ更新する場合は環境変数を一切指定しない上のコマンドが安全です。
 - 環境変数を変えたいときは GCP コンソール → Cloud Run → `line-webhook` → 「新しいリビジョンの編集とデプロイ」→「変数とシークレット」から GUI で変更してください。
 
-### 12.4 デプロイ後の確認
+### 13.4 デプロイ後の確認
 
 ヘルスチェック:
 
@@ -430,11 +465,11 @@ curl -X POST https://line-webhook-156606796405.asia-northeast1.run.app/digest \
 
 ---
 
-## 13. ローカル動作確認
+## 14. ローカル動作確認
 
 本番を触らずにロジックだけ確認したいときに使います。
 
-### 13.1 セットアップ
+### 14.1 セットアップ
 
 開発者ローカルでのみ必要（社長は通常使いません）。
 
@@ -444,7 +479,7 @@ curl -X POST https://line-webhook-156606796405.asia-northeast1.run.app/digest \
 4. サービスアカウント JSON ファイル（`sheets-to-wp-draft-XXXXXXXX.json`）を入手し、`.env` に `GOOGLE_SERVICE_ACCOUNT_JSON=/絶対パス/sheets-to-wp-draft-XXXXXXXX.json` を追加
 5. `source .env && export GOOGLE_APPLICATION_CREDENTIALS="$GOOGLE_SERVICE_ACCOUNT_JSON"`
 
-### 13.2 3 つのテストスクリプト
+### 14.2 3 つのテストスクリプト
 
 | スクリプト | 実行されること | 副作用 |
 |---|---|---|
@@ -459,18 +494,6 @@ curl -X POST https://line-webhook-156606796405.asia-northeast1.run.app/digest \
 ```
 
 `test_digest_local.py` は実行前に対話プロンプトで「本当に送るか」聞いてくれます。
-
----
-
-## 14. 運用担当
-
-| 役割 | 担当 |
-|---|---|
-| 担当者の任命 | 社長 |
-| 下書きのレビュー・修正 | 社長が任命した担当者 |
-| 公開判断（`$` 付きメッセージの送信） | 担当者 |
-| 配信内容の最終チェック | 担当者（broadcast 前に「ニュースレター記事テスト」シートで E 列空の行を確認できる） |
-| トラブル時のシステム調整 | 開発者（Cloud Run・Cloud Scheduler の管理者） |
 
 ---
 
